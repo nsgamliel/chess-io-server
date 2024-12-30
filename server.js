@@ -70,6 +70,7 @@ const joinRoom = async (socket, roomId, prevId) => {
 	if (roomSnap.exists()) {
 		let data = roomSnap.data();
 		
+		// TODO: make this more efficient and use updateDoc() instead of setDoc()
 		if (prevId && (data.player1 && data.player1.id === prevId || data.player2 && data.player2.id === prevId)) {
 			if (data.player1) data.player1.id = data.player1.id === prevId ? socket.id : data.player1.id;
 			if (data.player2) data.player2.id = data.player2.id === prevId ? socket.id : data.player2.id;
@@ -92,6 +93,17 @@ const joinRoom = async (socket, roomId, prevId) => {
 			socket.to(roomId).emit("newUser", socket.id);
 		}
 
+		else if (!data.player1 && data.player2) {
+			data.player1 = {
+				id: socket.id,
+				color: data.player2.color === 'black' ? 'white': 'black'
+			};
+			await setDoc(doc(gamesRef, roomId), data);
+			socket.join(roomId);
+			socket.emit("joinedRoom", roomId, data.player2.id, data.player1.color);
+			socket.to(roomId).emit("newUser", socket.id);
+		}
+
 		else {
 			console.log("Error assigning", socket.id, "to room", roomId);
 		}
@@ -111,7 +123,22 @@ const movePiece = async (socket, roomId, board, rcft) => {
 		socket.broadcast.to(roomId).emit("oppMove", board, rcft);
 		await setDoc(doc(gamesRef, roomId), data);
 	}
-}
+};
+
+const leaveRoom = async (socket, roomId) => {
+	console.log("leave room");
+	const roomSnap = await getDoc(doc(gamesRef, roomId));
+	
+	if (roomSnap.exists()) {
+		let data = roomSnap.data();
+		if (data.player1 && data.player1.id === socket.id) data.player1 = null;
+		if (data.player2 && data.player2.id === socket.id) data.player2 = null;
+		await setDoc(doc(gamesRef, roomId), data);
+		socket.broadcast.to(roomId).emit("oppLeft");
+		socket.leave(roomId);
+		socket.emit("leftRoom");
+	}
+};
 
 io.on("connection", (socket) => {
 
@@ -122,6 +149,7 @@ io.on("connection", (socket) => {
 	socket.on("createGame", () => createGame(socket));
 	socket.on("joinRoom", (roomId, prevId) => joinRoom(socket, roomId, prevId));
 	socket.on("movePiece", (roomId, board, rcft) => movePiece(socket, roomId, board, rcft));
+	socket.on("leaveRoom", (roomId) => leaveRoom(socket, roomId));
 
 });
 
