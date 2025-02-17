@@ -26,7 +26,6 @@ const io = new Server(httpServer, {
 	}
 });
 
-
 const chars = 'abcdefghijklmnopqrstuvqxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const createRoomName = () => {
 	let str = '';
